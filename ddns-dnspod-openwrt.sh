@@ -4,8 +4,8 @@
 # Netgear Nighthawk X4S R7800
 # ARMv7 Processor rev 0 (v7l)
 # ipq806x/generic
-# OpenWrt 22.03.0-rc4 r19426-2b1941e47d / LuCI openwrt-22.03 branch git-22.167.28394-8a4486a
-# 5.10.120
+# OpenWrt 22.03.3 r20028-43d71ad93e / LuCI openwrt-22.03 branch git-22.361.69894-438c598
+# 5.10.161
 # opkg install curl jq
 # chmod +x /bin/ddns-dnspod-openwrt.sh
 # echo -e "\n/bin/ddns-dnspod-openwrt.sh\n" >> /etc/sysupgrade.conf
