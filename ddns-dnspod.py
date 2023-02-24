@@ -19,9 +19,40 @@ DOMAIN = 'dnspod.cn'
 RECORD = 'www'
 
 SUBDOMAIN = '%s.%s' % (RECORD, DOMAIN)
+DDNS_PATH = os.path.split(os.path.realpath(__file__))[0] + os.sep
+DDNS_CONF = DDNS_PATH + 'ddns-dnspod.conf'
+DDNS_LOG = DDNS_PATH + 'ddns-dnspod.log'
 
-DDNS_CONF = os.path.split(os.path.realpath(__file__))[0] + os.sep + 'ddns-dnspod.conf'
-DDNS_LOG = os.path.split(os.path.realpath(__file__))[0] + os.sep + 'ddns-dnspod.log'
+
+def load_conf():
+    try:
+        if os.path.exists(DDNS_CONF):
+            with open(DDNS_CONF, 'r') as ddns_conf:
+                dict_conf = json.load(ddns_conf)
+                if dict_conf.get('domain_id') is not None \
+                        and dict_conf.get('record_id') is not None \
+                        and dict_conf.get('subdomain') is not None \
+                        and dict_conf.get('subdomain') == SUBDOMAIN:
+                    return dict_conf.get('domain_id'), dict_conf.get('record_id')
+        return save_conf()
+    except Exception as e:
+        logging.error(e)
+        return save_conf()
+
+
+def save_conf():
+    return dump_conf(get_record_id())
+
+
+def dump_conf(domain_id=None, record_id=None):
+    try:
+        dict_conf = {'subdomain': SUBDOMAIN, 'domain_id': domain_id, 'record_id': record_id}
+        with open(DDNS_CONF, 'w') as ddns_conf:
+            json.dump(dict_conf, ddns_conf)
+        return domain_id, record_id
+    except Exception as e:
+        logging.error(e)
+        return None, None
 
 
 def resolve():
@@ -37,7 +68,7 @@ def resolve():
         logging.error(e)
 
 
-def get_recorded():
+def get_record():
     try:
         if dns_resolver:
             return resolve()
@@ -48,40 +79,13 @@ def get_recorded():
         logging.error(e)
 
 
-def get_expected():
+def get_expect():
     try:
         with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as client:
             client.connect(('2400:3200::1', 53))
             return client.getsockname()[0]
     except Exception as e:
         logging.error(e)
-
-
-def load_conf():
-    try:
-        if not os.path.exists(DDNS_CONF):
-            return None, None
-        with open(DDNS_CONF, 'r') as ddns_conf:
-            dict_conf = json.load(ddns_conf)
-            if dict_conf.get('subdomain') is not None and dict_conf.get('subdomain') == SUBDOMAIN:
-                return dict_conf.get('domain_id'), dict_conf.get('record_id')
-        return None, None
-    except Exception as e:
-        logging.error(e)
-        return None, None
-
-
-def save_conf(domain_id=None, record_id=None):
-    try:
-        dict_conf = {'subdomain': SUBDOMAIN, 'domain_id': domain_id, 'record_id': record_id}
-        with open(DDNS_CONF, 'w') as ddns_conf:
-            json.dump(dict_conf, ddns_conf)
-    except Exception as e:
-        logging.error(e)
-
-
-def clear_conf():
-    save_conf()
 
 
 def dict_params(domain=None, domain_id=None, record=None, record_id=None, record_type=None, value=None,
@@ -120,92 +124,68 @@ def request_dnsapi(url, body):
 
 
 def get_domain_id():
-    try:
-        params = dict_params(domain=DOMAIN)
-        response = request_dnsapi('/Domain.Info', params)
-        if response is not None and response.get('domain') is not None:
-            return response.get('domain').get('id')
-    except Exception as e:
-        logging.error(e)
+    params = dict_params(domain=DOMAIN)
+    response = request_dnsapi('/Domain.Info', params)
+    if response is not None \
+            and response.get('domain') is not None \
+            and response.get('domain').get('id') is not None:
+        return response.get('domain').get('id')
+    raise RuntimeError('Failed to get DOMAIN ID.')
 
 
-def get_record_id(domain_id, record_type):
-    try:
-        params = dict_params(None, domain_id, RECORD, None, record_type, None, None)
-        response = request_dnsapi('/Record.List', params)
-        if response is not None and response.get('records') is not None:
-            return response.get('records')[0].get('id')
-    except Exception as e:
-        logging.error(e)
-
-
-def create_record(domain_id):
-    try:
-        params = dict_params(None, domain_id, RECORD, None, 'A', '119.29.29.29', 0)
-        response = request_dnsapi('/Record.Create', params)
-        if response is not None and response.get('record') is not None:
-            return response.get('record').get('id')
-    except Exception as e:
-        logging.error(e)
-
-
-def remove_record(domain_id):
-    try:
-        record_id = get_record_id(domain_id, 'A')
-        if record_id is not None:
-            params = dict_params(None, domain_id, None, record_id, None, None, None)
-            request_dnsapi('/Record.Remove', params)
-    except Exception as e:
-        logging.error(e)
-
-
-def ddns_record(domain_id, record_id):
-    try:
-        params = dict_params(None, domain_id, RECORD, record_id, None, None, 0)
-        response = request_dnsapi('/Record.Ddns', params)
-        if response is not None:
-            return response.get('status').get('code') == '1'
-    except Exception as e:
-        logging.error(e)
+def get_record_id():
+    domain_id = get_domain_id()
+    if domain_id is None:
+        return None, None
+    params = dict_params(None, domain_id, RECORD, None, 'AAAA', None, None)
+    response = request_dnsapi('/Record.List', params)
+    if response is None or response.get('records') is None or len(response.get('records')) == 0:
+        return domain_id, None
+    record_id = None
+    for record in response.get('records'):
+        if record_id is None:
+            record_id = record.get('id')
+        else:
+            remove_record(domain_id, record.get('id'))
+    return domain_id, record_id
 
 
 def modify_record(domain_id, record_id, value):
-    try:
-        params = dict_params(None, domain_id, RECORD, record_id, 'AAAA', value, 0)
-        response = request_dnsapi('/Record.Modify', params)
-        if response is not None:
-            return response.get('status').get('code') == '1'
-    except Exception as e:
-        logging.error(e)
+    params = dict_params(None, domain_id, RECORD, record_id, 'AAAA', value, 0)
+    response = request_dnsapi('/Record.Modify', params)
+    if response is None \
+            or response.get('status') is None \
+            or response.get('status').get('code') is None \
+            or response.get('status').get('code') != '1':
+        dump_conf()
+
+
+def create_record(domain_id, value):
+    params = dict_params(None, domain_id, RECORD, None, 'AAAA', value, 0)
+    response = request_dnsapi('/Record.Create', params)
+    if response is None or response.get('record') is None:
+        dump_conf()
+    else:
+        save_conf()
+
+
+def remove_record(domain_id, record_id):
+    params = dict_params(None, domain_id, None, record_id, None, None, None)
+    request_dnsapi('/Record.Remove', params)
 
 
 def main():
-    try:
-        expected = get_expected()
-        if expected is None:
-            raise RuntimeError('Failed to get IP address.')
-        recorded = get_recorded()
-        if recorded is not None and recorded == expected:
-            return
-        domain_id, record_id = load_conf()
-        if domain_id is None:
-            record_id = None
-            domain_id = get_domain_id()
-        if domain_id is None:
-            raise RuntimeError('Domain %s does not exist.' % DOMAIN)
-        if record_id is None:
-            record_id = get_record_id(domain_id, 'AAAA')
-        if record_id is None:
-            record_id = create_record(domain_id)
-        if record_id is None:
-            remove_record(domain_id)
-            raise RuntimeError('Domain %s creation failed.' % DOMAIN)
-        if ddns_record(domain_id, record_id) and modify_record(domain_id, record_id, expected):
-            save_conf(domain_id, record_id)
-        else:
-            clear_conf()
-    except Exception as e:
-        logging.error(e)
+    expect = get_expect()
+    if expect is None:
+        raise RuntimeError('Failed to get IP ADDRESS.')
+    record = get_record()
+    if record is not None and record == expect:
+        return
+    domain_id, record_id = load_conf()
+    if domain_id is not None and record_id is not None:
+        modify_record(domain_id, record_id, expect)
+    elif domain_id is not None:
+        create_record(domain_id, expect)
 
 
 if __name__ == '__main__':

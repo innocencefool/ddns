@@ -11,52 +11,55 @@ from aliyunsdkalidns.request.v20150109.DescribeSubDomainRecordsRequest import De
 from aliyunsdkalidns.request.v20150109.UpdateDomainRecordRequest import UpdateDomainRecordRequest
 from aliyunsdkcore.client import AcsClient
 
-# pip3 install pytz aliyun-python-sdk-alidns -i https://pypi.tuna.tsinghua.edu.cn/simple
+# pip3 install aliyun-python-sdk-alidns pytz -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-REGION_ID = 'cn-hangzhou'
 ACCESSKEY_ID = '########################'
 ACCESSKEY_SECRET = '##############################'
 DOMAIN = 'alidns.com'
 RECORD = 'www'
-
-TIMEZONE = 'Asia/Shanghai'
 RECORD_TYPE = 'CNAME'
 RECORD_TURN = {'20:00:00': 'us.alidns.com', '02:00:00': 'jp.alidns.com'}
 
+REGION_ID = 'cn-hangzhou'
+SUBDOMAIN = '%s.%s' % (RECORD, DOMAIN)
 DDNS_PATH = os.path.split(os.path.realpath(__file__))[0] + os.sep
 DDNS_CONF = DDNS_PATH + 'ddns-alidns-turn.conf'
 DDNS_LOG = DDNS_PATH + 'ddns-alidns-turn.log'
-SUBDOMAIN = '%s.%s' % (RECORD, DOMAIN)
+TIMEZONE = 'Asia/Shanghai'
 
 acsClient = AcsClient(ACCESSKEY_ID, ACCESSKEY_SECRET, REGION_ID)
 
 
 def load_conf():
     try:
-        if not os.path.exists(DDNS_CONF):
-            save_conf()
-        with open(DDNS_CONF, 'r') as ddns_conf:
-            dict_conf = json.load(ddns_conf)
-            if dict_conf.get('subdomain') is not None and dict_conf.get('subdomain') == SUBDOMAIN:
-                record_id = dict_conf.get('record_id')
-                if record_id is not None:
+        if os.path.exists(DDNS_CONF):
+            with open(DDNS_CONF, 'r') as ddns_conf:
+                dict_conf = json.load(ddns_conf)
+                if dict_conf.get('record_id') is not None \
+                        and dict_conf.get('subdomain') is not None \
+                        and dict_conf.get('subdomain') == SUBDOMAIN:
                     return dict_conf.get('record_id')
-                else:
-                    save_conf()
+        return save_conf()
     except Exception as e:
         logging.error(e)
+        return save_conf()
 
 
 def save_conf():
+    return dump_conf(describe_records())
+
+
+def dump_conf(record_id=None):
     try:
-        dict_conf = {'subdomain': SUBDOMAIN, 'record_id': describe_records(False)}
+        dict_conf = {'subdomain': SUBDOMAIN, 'record_id': record_id}
         with open(DDNS_CONF, 'w') as ddns_conf:
             json.dump(dict_conf, ddns_conf)
+        return record_id
     except Exception as e:
         logging.error(e)
 
 
-def describe_records(value=True):
+def describe_records(key='RecordId'):
     try:
         logging.info('DescribeSubDomainRecordsRequest %s' % SUBDOMAIN)
         request = DescribeSubDomainRecordsRequest()
@@ -66,12 +69,13 @@ def describe_records(value=True):
         request.set_Line('default')
         request.set_accept_format('json')
         response = acsClient.do_action_with_exception(request)
-        if value:
-            return json.loads(response)['DomainRecords']['Record'][0]['Value']
-        else:
-            return json.loads(response)['DomainRecords']['Record'][0]['RecordId']
+        return json.loads(response).get('DomainRecords').get('Record')[0].get(key)
     except Exception as e:
         logging.error(e)
+
+
+def describe_value():
+    return describe_records('Value')
 
 
 def update_record(record_id, value):
@@ -84,10 +88,10 @@ def update_record(record_id, value):
         request.set_Line('default')
         request.set_Value(value)
         request.set_accept_format('json')
-        response = acsClient.do_action_with_exception(request)
-        return json.loads(response)['RecordId']
+        acsClient.do_action_with_exception(request)
     except Exception as e:
         logging.error(e)
+        dump_conf()
 
 
 def my_turn():
@@ -103,13 +107,13 @@ def my_turn():
 
 
 def main():
+    expect = my_turn()
+    record = describe_value()
+    if record is not None and record == expect:
+        return
     record_id = load_conf()
     if record_id is not None:
-        recorded = describe_records()
-        if recorded is not None:
-            expected = my_turn()
-            if expected is not None and expected != recorded:
-                update_record(record_id, expected)
+        update_record(record_id, expect)
 
 
 if __name__ == '__main__':
