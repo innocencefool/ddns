@@ -34,14 +34,18 @@ def load_conf():
                         and dict_conf.get('subdomain') is not None \
                         and dict_conf.get('subdomain') == SUBDOMAIN:
                     return dict_conf.get('domain_id'), dict_conf.get('record_id')
-        return save_conf()
+        domain_id, record_id = save_conf()
+        return domain_id, record_id
     except Exception as e:
         logging.error(e)
-        return save_conf()
+        domain_id, record_id = save_conf()
+        return domain_id, record_id
 
 
 def save_conf():
-    return dump_conf(get_record_id())
+    domain_id, record_id = get_record_id()
+    dump_conf(domain_id, record_id)
+    return domain_id, record_id
 
 
 def dump_conf(domain_id=None, record_id=None):
@@ -49,10 +53,8 @@ def dump_conf(domain_id=None, record_id=None):
         dict_conf = {'subdomain': SUBDOMAIN, 'domain_id': domain_id, 'record_id': record_id}
         with open(DDNS_CONF, 'w') as ddns_conf:
             json.dump(dict_conf, ddns_conf)
-        return domain_id, record_id
     except Exception as e:
         logging.error(e)
-        return None, None
 
 
 def resolve():

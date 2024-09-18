@@ -46,7 +46,9 @@ def load_conf():
 
 
 def save_conf():
-    return dump_conf(describe_records())
+    record_id = describe_records()
+    dump_conf(record_id)
+    return record_id
 
 
 def dump_conf(record_id=None):
@@ -54,7 +56,6 @@ def dump_conf(record_id=None):
         dict_conf = {'subdomain': SUBDOMAIN, 'record_id': record_id}
         with open(DDNS_CONF, 'w') as ddns_conf:
             json.dump(dict_conf, ddns_conf)
-        return record_id
     except Exception as e:
         logging.error(e)
 

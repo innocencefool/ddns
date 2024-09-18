@@ -28,14 +28,18 @@ def load_conf():
                         and dict_conf.get('domain') is not None \
                         and dict_conf.get('domain') == DOMAIN:
                     return dict_conf.get('zone_id'), dict_conf.get('record_id')
-        return save_conf()
+        zone_id, record_id = save_conf()
+        return zone_id, record_id
     except Exception as e:
         logging.error(e)
-        return save_conf()
+        zone_id, record_id = save_conf()
+        return zone_id, record_id
 
 
 def save_conf():
-    return dump_conf(list_records())
+    zone_id, record_id = list_records()
+    dump_conf(zone_id, record_id)
+    return zone_id, record_id
 
 
 def dump_conf(zone_id=None, record_id=None):
@@ -43,10 +47,8 @@ def dump_conf(zone_id=None, record_id=None):
         dict_conf = {'domain': DOMAIN, 'zone_id': zone_id, 'record_id': record_id}
         with open(DDNS_CONF, 'w') as ddns_conf:
             json.dump(dict_conf, ddns_conf)
-        return zone_id, record_id
     except Exception as e:
         logging.error(e)
-        return None, None
 
 
 def restful_api(url, method='GET', data=None):
