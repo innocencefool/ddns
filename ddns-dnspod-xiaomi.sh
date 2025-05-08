@@ -1,14 +1,15 @@
 #!/bin/sh
 
-#######################################################################################################################
+#################################################################################################################
 # Xiaomi路由器BE5000
 # MiWiFi 稳定版 1.0.60
+# curl -L -o /data/ddns-dnspod.sh https://github.com/innocencefool/ddns/raw/refs/heads/main/ddns-dnspod-xiaomi.sh
+# chmod +x /data/ddns-dnspod.sh
 # curl -L -o /data/jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-armel
 # chmod +x /data/jq
-# chmod +x /data/ddns-dnspod-xiaomi.sh
 # vi /etc/crontabs/root
-# */5 * * * * /bin/ddns-dnspod-xiaomi.sh www dnspod.cn 13490,6b5976c68aba5b14a0558b77c17c3932 pppoe-wan >/dev/null 2>&1
-#######################################################################################################################
+# */5 * * * * /data/ddns-dnspod.sh www dnspod.cn 13490,6b5976c68aba5b14a0558b77c17c3932 pppoe-wan >/dev/null 2>&1
+#################################################################################################################
 
 ddns_conf=/tmp/ddns-dnspod.conf
 ddns_log=/tmp/ddns-dnspod.log
